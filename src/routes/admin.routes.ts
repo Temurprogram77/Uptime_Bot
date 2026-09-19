@@ -205,12 +205,52 @@ router.post("/monitors", async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: "Server nomi va URL manzili shart." });
     }
 
+    let validUrl = url.trim();
+    if (!validUrl.startsWith("http://") && !validUrl.startsWith("https://")) {
+      validUrl = `https://${validUrl}`;
+    }
+
+    try {
+      const parsed = new URL(validUrl);
+      if (!parsed.hostname.includes(".") && parsed.hostname !== "localhost") {
+        return res.status(400).json({
+          success: false,
+          message: "Noto'g'ri URL formati. To'liq domen nomini kiriting (masalan: https://google.com).",
+        });
+      }
+      validUrl = parsed.toString();
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "URL formati yaroqsiz.",
+      });
+    }
+
+    // Dastlabki tekshiruv (Ping) — agar server ishlamasa yoki xato bersa, qabul qilinmaydi!
+    const pingResult = await PingService.checkUrl(validUrl);
+    if (pingResult.status !== "UP") {
+      const reason = pingResult.errorMessage || "Sayt javob bermadi";
+      const code = pingResult.statusCode ? ` (HTTP ${pingResult.statusCode})` : "";
+      return res.status(400).json({
+        success: false,
+        message: `Sayt tekshiruvdan o'tmadi: ${reason}${code}. Faqat ishlab turgan saytlarni qo'shish mumkin.`,
+      });
+    }
+
     // Default to admin user if no userId provided
     let targetUserId = userId;
     if (!targetUserId) {
       const adminChatId = (process.env.TELEGRAM_CHAT_ID || "6150067773").trim();
-      const adminUser = await prisma.user.findUnique({ where: { telegramId: adminChatId } });
-      if (adminUser) targetUserId = adminUser.id;
+      let adminUser = await prisma.user.findUnique({ where: { telegramId: adminChatId } });
+      if (!adminUser) {
+        adminUser = await prisma.user.create({
+          data: {
+            telegramId: adminChatId,
+            firstName: "Admin",
+          },
+        });
+      }
+      targetUserId = adminUser.id;
     }
 
     if (!targetUserId) {
@@ -221,14 +261,13 @@ router.post("/monitors", async (req: Request, res: Response) => {
     const monitor = await prisma.monitor.create({
       data: {
         name,
-        url,
+        url: validUrl,
         intervalMinutes: Number(intervalMinutes),
         userId: targetUserId,
       },
     });
 
-    // Birdan birinchi pingni tekshirib saqlash
-    const pingResult = await PingService.checkUrl(url);
+    // Muvaffaqiyatli birinchi pingni saqlash
     await prisma.pingLog.create({
       data: {
         monitorId: monitor.id,
@@ -241,7 +280,7 @@ router.post("/monitors", async (req: Request, res: Response) => {
 
     res.status(201).json({
       success: true,
-      message: `"${monitor.name}" serveri muvaffaqiyatli qo'shildi!`,
+      message: `"${monitor.name}" serveri muvaffaqiyatli tekshirildi va monitoringga qo'shildi!`,
       data: monitor,
     });
   } catch (error: any) {

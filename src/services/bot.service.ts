@@ -46,6 +46,15 @@ export const getOrCreateUser = async (userOrId: any) => {
   });
 };
 
+export const isUserAdmin = (telegramId?: string | number): boolean => {
+  if (!telegramId) return false;
+  const idStr = telegramId.toString().trim();
+  const configuredAdmins = (process.env.TELEGRAM_CHAT_ID || "6150067773,8765623176")
+    .split(",")
+    .map((s) => s.trim());
+  return configuredAdmins.includes(idStr) || idStr === "6150067773" || idStr === "8765623176";
+};
+
 const getMainMenu = (isAdmin = false) => {
   const keyboard = new InlineKeyboard()
     .text("🖥 Mening serverlarim", "my_servers")
@@ -87,8 +96,7 @@ bot.command("start", async (ctx) => {
   const telegramId = ctx.from.id.toString();
   await getOrCreateUser(ctx.from);
 
-  const adminChatId = (process.env.TELEGRAM_CHAT_ID || "6150067773").trim();
-  const isAdmin = telegramId === adminChatId;
+  const isAdmin = isUserAdmin(telegramId);
   const keyboard = getMainMenu(isAdmin);
 
   if (isAdmin) {
@@ -137,7 +145,7 @@ bot.callbackQuery("add_monitor", async (ctx) => {
 bot.callbackQuery("my_servers", async (ctx) => {
   await ctx.answerCallbackQuery();
   const user = await getOrCreateUser(ctx.from);
-  const isAdmin = ctx.from.id.toString() === process.env.TELEGRAM_CHAT_ID;
+  const isAdmin = isUserAdmin(ctx.from.id);
 
   const monitors = await prisma.monitor.findMany({
     where: { userId: user.id }, // Faqat shu odamning serverlari
@@ -295,7 +303,7 @@ bot.callbackQuery(/^delete_confirm_(.+)$/, async (ctx) => {
 bot.callbackQuery(/^delete_execute_(.+)$/, async (ctx) => {
   const monitorId = ctx.match[1];
   const user = await getOrCreateUser(ctx.from);
-  const isAdmin = ctx.from.id.toString() === process.env.TELEGRAM_CHAT_ID;
+  const isAdmin = isUserAdmin(ctx.from.id);
 
   await prisma.monitor.deleteMany({
     where: { id: monitorId, userId: user.id },
@@ -341,7 +349,7 @@ bot.callbackQuery(/^edit_interval_(\d+)$/, async (ctx) => {
 // Asosiy menyuga qaytish
 bot.callbackQuery("back_to_menu", async (ctx) => {
   await ctx.answerCallbackQuery();
-  const isAdmin = ctx.from.id.toString() === process.env.TELEGRAM_CHAT_ID;
+  const isAdmin = isUserAdmin(ctx.from.id);
   await ctx.reply("🤖 Asosiy menyu:", { reply_markup: getMainMenu(isAdmin) });
 });
 
@@ -351,30 +359,71 @@ bot.on("message:text", async (ctx) => {
   if (!state) return;
 
   if (state.step === "awaiting_url") {
-    const inputUrl = ctx.message.text.trim();
+    let inputUrl = ctx.message.text.trim();
+
+    // 1. Agar foydalanuvchi "http://" yoki "https://" yozmagan bo'lsa, avtomatik qo'shamiz
+    if (!inputUrl.startsWith("http://") && !inputUrl.startsWith("https://")) {
+      inputUrl = `https://${inputUrl}`;
+    }
 
     try {
-      const parsed = new URL(inputUrl.startsWith("http") ? inputUrl : `https://${inputUrl}`);
+      const parsed = new URL(inputUrl);
+
+      // 2. Domen nomi formati tekshiriladi (kamida bitta nuqta bo'lishi kerak yoki localhost)
+      if (!parsed.hostname.includes(".") && parsed.hostname !== "localhost") {
+        return ctx.reply(
+          `❌ <b>Noto'g'ri havola formati!</b>\n\n` +
+          `Siz kiritgan <code>${ctx.message.text}</code> manzili yaroqsiz.\n` +
+          `Sayt manzili to'liq domen nomiga ega bo'lishi shart (masalan: <code>google.com</code> yoki <code>https://my-site.uz</code>).\n\n` +
+          `Iltimos, qaytadan to'g'ri havola yuboring:`,
+          { parse_mode: "HTML" }
+        );
+      }
+
       const validUrl = parsed.toString();
 
-      await ctx.reply("🔍 Sayt tekshirilmoqda...");
+      await ctx.reply("🔍 <b>Sayt tekshirilmoqda...</b>\n<i>Serverga so'rov yuborilmoqda, iltimos kuting.</i>", {
+        parse_mode: "HTML",
+      });
+
+      // 3. Serverga haqiqiy tekshiruv so'rovi yuboriladi (Ping)
       const pingTest = await PingService.checkUrl(validUrl);
 
+      // 4. AGAR BIRINCHI SO'ROVIDAYOQ XATOLIK BO'LSA (DOWN, xato kod yoki ulanib bo'lmasa) — QABUL QILINMAYDI!
+      if (pingTest.status !== "UP") {
+        const errorReason = pingTest.errorMessage || "Sayt javob bermadi yoki server mavjud emas";
+        const codeInfo = pingTest.statusCode ? ` (HTTP kod: <b>${pingTest.statusCode}</b>)` : " (Aloqa yo'q)";
+
+        return ctx.reply(
+          `❌ <b>Sayt qabul qilinmadi! Tekshiruvda xatolik yuz berdi.</b>\n\n` +
+          `🌐 <b>Tekshirilgan manzil:</b> <code>${validUrl}</code>\n` +
+          `📡 <b>Holat:</b> 🔴 DOWN${codeInfo}\n` +
+          `⚠️ <b>Sabab:</b> <code>${errorReason}</code>\n\n` +
+          `📌 <i>Qoida: Faqatgina hozirda ishlab turgan va muvaffaqiyatli (200-399) javob berayotgan saytlarni monitoringga qo'shishingiz mumkin.</i>\n\n` +
+          `Iltimos, ishlayotgan boshqa havola yuboring (yoki bekor qilish uchun /start bosing):`,
+          { parse_mode: "HTML" }
+        );
+      }
+
+      // 5. Faqatgina tekshiruv muvaffaqiyatli (UP) bo'lsagina qabul qilinadi
       state.url = validUrl;
       state.name = parsed.hostname;
       state.step = "awaiting_interval";
 
-      const statusText = pingTest.status === "UP" ? "🟢 Ishlamoqda" : "🔴 DOWN";
-
       await ctx.reply(
-        `Sayt qabul qilindi!\n\n` +
+        `✅ <b>Sayt muvaffaqiyatli tekshirildi va faol!</b>\n\n` +
           `🌐 <b>Manzil:</b> ${validUrl}\n` +
-          `📡 <b>Dastlabki holat:</b> ${statusText} (${pingTest.responseTime}ms)\n\n` +
+          `📡 <b>Dastlabki holat:</b> 🟢 Ishlamoqda (UP)\n` +
+          `⚡ <b>Javob vaqti:</b> ${pingTest.responseTime} ms\n` +
+          `🔢 <b>Status kod:</b> ${pingTest.statusCode || 200} (OK)\n\n` +
           `Ushbu sayt har necha daqiqada tekshirilsin?`,
         { reply_markup: getIntervalKeyboard("interval_"), parse_mode: "HTML" }
       );
     } catch {
-      await ctx.reply("❌ Noto'g'ri URL kiritildi. Qaytadan urinib ko'ring:");
+      await ctx.reply(
+        "❌ <b>Noto'g'ri URL kiritildi!</b>\nIltimos, to'g'ri veb-manzil kiriting (masalan: <code>google.com</code>):",
+        { parse_mode: "HTML" }
+      );
     }
   }
 });

