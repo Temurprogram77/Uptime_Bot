@@ -1,15 +1,36 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import { execSync } from "child_process";
 import app from "./app";
 import { startPingWorker } from "./jobs/pingWorker";
-import { bot } from "./services/bot.service";
+import { bot, getOrCreateUser } from "./services/bot.service";
+
+// Render yoki boshqa serverda database jadvallarini avtomatik yaratish
+try {
+  console.log("Database migratsiyasi tekshirilmoqda (prisma db push)...");
+  execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
+  console.log("Database jadvallari muvaffaqiyatli tayyorlandi!");
+} catch (error: any) {
+  console.error("Database sinxronizatsiya xatosi:", error.message);
+}
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, async () => {
   console.log(`Server ishga tushdi: http://localhost:${PORT}`);
   
+  // Bosh admin hisobini bazada mavjudligini ta'minlash
+  const adminChatId = (process.env.TELEGRAM_CHAT_ID || "6150067773").trim();
+  if (adminChatId) {
+    try {
+      await getOrCreateUser({ id: adminChatId, first_name: "Admin" });
+      console.log(`Admin (${adminChatId}) hisobi tekshirildi/yaratildi.`);
+    } catch (e: any) {
+      console.warn("Admin hisobini yaratishda ogohlantirish:", e.message);
+    }
+  }
+
   // Orqa fon cron workerini yoqish
   startPingWorker();
 
