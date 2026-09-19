@@ -116,6 +116,18 @@ bot.command("start", async (ctx) => {
         console.warn("setChatMenuButton ogohlantirish:", err.message);
       }
     }
+  } else {
+    // Oddiy foydalanuvchilar uchun pastki Admin Panel tugmasini butunlay yashirish
+    try {
+      await ctx.api.setChatMenuButton({
+        chat_id: ctx.chat.id,
+        menu_button: {
+          type: "commands",
+        },
+      });
+    } catch {
+      // ignore
+    }
   }
 
   const welcomeText =
