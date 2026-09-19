@@ -95,7 +95,10 @@ router.get("/users", async (req: Request, res: Response) => {
 router.delete("/users/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const adminTelegramId = (process.env.TELEGRAM_CHAT_ID || "6150067773").trim();
+    const configuredAdmins = (process.env.TELEGRAM_CHAT_ID || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     const user = await prisma.user.findUnique({
       where: { id },
@@ -106,7 +109,7 @@ router.delete("/users/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: "Foydalanuvchi topilmadi." });
     }
 
-    if (user.telegramId === adminTelegramId) {
+    if (configuredAdmins.includes(user.telegramId)) {
       return res.status(400).json({
         success: false,
         message: "Xavfsizlik: Bosh administrator hisobini o'chirib bo'lmaydi!",
@@ -240,17 +243,19 @@ router.post("/monitors", async (req: Request, res: Response) => {
     // Default to admin user if no userId provided
     let targetUserId = userId;
     if (!targetUserId) {
-      const adminChatId = (process.env.TELEGRAM_CHAT_ID || "6150067773").trim();
-      let adminUser = await prisma.user.findUnique({ where: { telegramId: adminChatId } });
-      if (!adminUser) {
-        adminUser = await prisma.user.create({
-          data: {
-            telegramId: adminChatId,
-            firstName: "Admin",
-          },
-        });
+      const firstAdminId = (process.env.TELEGRAM_CHAT_ID || "").split(",")[0]?.trim();
+      if (firstAdminId) {
+        let adminUser = await prisma.user.findUnique({ where: { telegramId: firstAdminId } });
+        if (!adminUser) {
+          adminUser = await prisma.user.create({
+            data: {
+              telegramId: firstAdminId,
+              firstName: "Admin",
+            },
+          });
+        }
+        targetUserId = adminUser.id;
       }
-      targetUserId = adminUser.id;
     }
 
     if (!targetUserId) {

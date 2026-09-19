@@ -49,10 +49,11 @@ export const getOrCreateUser = async (userOrId: any) => {
 export const isUserAdmin = (telegramId?: string | number): boolean => {
   if (!telegramId) return false;
   const idStr = telegramId.toString().trim();
-  const configuredAdmins = (process.env.TELEGRAM_CHAT_ID || "6150067773,8765623176")
+  const configuredAdmins = (process.env.TELEGRAM_CHAT_ID || "")
     .split(",")
-    .map((s) => s.trim());
-  return configuredAdmins.includes(idStr) || idStr === "6150067773" || idStr === "8765623176";
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return configuredAdmins.includes(idStr);
 };
 
 const getMainMenu = (isAdmin = false) => {
@@ -62,10 +63,10 @@ const getMainMenu = (isAdmin = false) => {
     .text("➕ Yangi sayt qo'shish", "add_monitor");
 
   if (isAdmin) {
-    const webAppUrl = process.env.WEBAPP_URL || "https://antivirus-tree-versus-cycles.trycloudflare.com";
-    if (webAppUrl.startsWith("https://")) {
+    const webAppUrl = process.env.WEBAPP_URL;
+    if (webAppUrl && webAppUrl.startsWith("https://")) {
       keyboard.row().webApp("👑 Admin Panel", webAppUrl);
-    } else {
+    } else if (webAppUrl) {
       keyboard.row().url("👑 Admin Panel", webAppUrl);
     }
   }

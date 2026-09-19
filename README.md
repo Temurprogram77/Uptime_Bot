@@ -13,6 +13,7 @@ Multi-Tenant Uptime & Server Health Monitor backend service with automated cron 
 
 ## 🛠 Features
 - **Multi-Tenant Server Monitoring**: Regular users can add, pause, test, and delete their own monitored sites.
+- **Strict Pre-check Validation**: All URLs are ping-verified in real time; unreachable or broken sites are rejected before saving.
 - **Downtime Alerts**: Real-time Telegram alerts sent directly to users on state change to `DOWN`.
 - **Admin REST API (`/api/admin`)**:
   - `GET /api/admin/stats`: Total users, monitors, and live UP/DOWN counts.
@@ -30,7 +31,7 @@ Multi-Tenant Uptime & Server Health Monitor backend service with automated cron 
 ## 🚀 Render.com Deployment
 
 1. Create a new **Web Service** on [Render.com](https://dashboard.render.com).
-2. Connect this repository (`Temurprogram77/Uptime_Bot`).
+2. Connect your repository.
 3. Set the following settings:
    - **Environment**: `Node`
    - **Build Command**:
@@ -45,6 +46,6 @@ Multi-Tenant Uptime & Server Health Monitor backend service with automated cron 
    - `PORT`: `5000`
    - `NODE_ENV`: `production`
    - `TELEGRAM_BOT_TOKEN`: `YOUR_TELEGRAM_BOT_TOKEN`
-   - `TELEGRAM_CHAT_ID`: `6150067773`
+   - `TELEGRAM_CHAT_ID`: `YOUR_TELEGRAM_USER_ID`
    - `DATABASE_URL`: `file:./dev.db`
    - `WEBAPP_URL`: `https://YOUR_VERCEL_FRONTEND.vercel.app`

@@ -21,11 +21,15 @@ app.listen(PORT, async () => {
   console.log(`Server ishga tushdi: http://localhost:${PORT}`);
   
   // Bosh admin hisobini bazada mavjudligini ta'minlash
-  const adminChatId = (process.env.TELEGRAM_CHAT_ID || "6150067773").trim();
-  if (adminChatId) {
+  const adminChatIds = (process.env.TELEGRAM_CHAT_ID || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  for (const adminId of adminChatIds) {
     try {
-      await getOrCreateUser({ id: adminChatId, first_name: "Admin" });
-      console.log(`Admin (${adminChatId}) hisobi tekshirildi/yaratildi.`);
+      await getOrCreateUser({ id: adminId, first_name: "Admin" });
+      console.log(`Admin (${adminId}) hisobi tekshirildi/yaratildi.`);
     } catch (e: any) {
       console.warn("Admin hisobini yaratishda ogohlantirish:", e.message);
     }
