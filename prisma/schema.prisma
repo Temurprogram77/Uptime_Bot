@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String    @id @default(uuid())
+  telegramId  String    @unique
+  firstName   String?
+  lastName    String?
+  username    String?
+  photoUrl    String?
+  phone       String?
+  createdAt   DateTime  @default(now())
+  monitors    Monitor[]
+}
+
+model Monitor {
+  id              String      @id @default(uuid())
+  url             String
+  name            String
+  intervalMinutes Int         @default(5)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pingLogs        PingLog[]
+}
+
+model PingLog {
+  id           String   @id @default(uuid())
+  statusCode   Int?
+  responseTime Int
+  status       String
+  errorMessage String?
+  checkedAt    DateTime @default(now())
+  monitorId    String
+  monitor      Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+}
