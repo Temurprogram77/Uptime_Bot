@@ -2,9 +2,10 @@
   "name": "uptime-backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "postinstall": "prisma generate && tsc",
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "prisma:push": "prisma db push"
