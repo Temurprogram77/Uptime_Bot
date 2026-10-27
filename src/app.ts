@@ -24,6 +24,15 @@ app.use(express.json());
 app.use("/api/monitors", monitorRoutes);
 app.use("/api/admin", adminRoutes);
 
+// Asosiy root va health endpointlar (UptimeRobot va monitoring uchun)
+app.get("/", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "Uptime Monitor & Bot Backend",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", message: "Server muvaffaqiyatli ishlamoqda!" });
 });
